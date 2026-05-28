@@ -1,0 +1,1403 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>VC-Lernapp · HSLU MSc Venture Capital</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  html, body { background:#f8fafc; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  .scrollbar-hide::-webkit-scrollbar { display:none; }
+  .scrollbar-hide { -ms-overflow-style:none; scrollbar-width:none; }
+  .card-flip { transform-style: preserve-3d; transition: transform .45s ease; }
+  .card-flip.is-flipped { transform: rotateY(180deg); }
+  .card-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .card-back { transform: rotateY(180deg); }
+  @media (max-width: 640px) { .tap { -webkit-tap-highlight-color: transparent; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect, useRef } = React;
+
+/* =========================================================================
+   DATENBASIS
+   Quelle = Exam excerpt part II.pdf  |  Excerpt 2024 Exam.pdf
+            260428 Pedergnana_Heimann - Venture_Capital_Part-1.pdf  (Skript P1)
+            260428 Pedergnana_Heimann - Venture_Capital_Part-2.pdf  (Skript P2)
+            260428 Legal Basis of the Venture Capital Business (Wenger Vieli)
+            260505 Valuation Performance Measurment Fund Reporting
+   ========================================================================= */
+
+const TOPICS = [
+  { id: "fund-perf",   name: "Fund Performance (IRR, DPI, RVPI, TVPI)", weight: 5 },
+  { id: "valuation",   name: "Valuation, Pre-/Post-Money & Cap Table",  weight: 5 },
+  { id: "vc-vs-pe",    name: "VC vs. Private Equity",                    weight: 5 },
+  { id: "termsheet",   name: "Term Sheet & Vertragsklauseln",            weight: 4 },
+  { id: "liq-pref",    name: "Liquidation Preference",                   weight: 4 },
+  { id: "fund-docs",   name: "Equity-Round-Dokumente (GP, LP, SHA, IA)", weight: 4 },
+  { id: "carry-fees",  name: "Carried Interest, Hurdle, Fees",           weight: 3 },
+  { id: "stages",      name: "Investment Stages & VC-Prozess",           weight: 3 },
+  { id: "exit",        name: "Exit-Formen",                              weight: 3 },
+  { id: "j-curve",     name: "J-Curve & Fund Mechanics",                 weight: 3 },
+  { id: "swiss",       name: "Swiss VC Ecosystem (Venture Kick, SECA)",  weight: 2 },
+  { id: "process",     name: "VC-Auswahlfragen für Gründer",             weight: 3 },
+  { id: "portfolio",   name: "Portfolio-Approach & Risikoprofil",        weight: 2 },
+  { id: "private-mk",  name: "Private vs. Public Markets",               weight: 2 },
+  { id: "pitfalls",    name: "Performance-Pitfalls (Methodik)",          weight: 2 },
+];
+
+/* Quellen (Kurzangaben). Folie/Seitennummer entspricht der durchgezählten
+   PDF-Seite bzw. der Foliennummer auf dem Skript. */
+const SRC = {
+  ex1:  (q) => `Altklausur «Excerpt 2024 Exam.pdf», Task ${q}`,
+  ex2:  (q) => `Altklausur «Exam excerpt part II.pdf», Task ${q}`,
+  p1:   (f) => `Skript Pedergnana/Heimann – Part 1, Folie ${f}`,
+  p2:   (f) => `Skript Pedergnana/Heimann – Part 2, Folie ${f}`,
+  legal:(f) => `Wenger Vieli, Legal Basis of the VC Business (28.04.2026), Folie ${f}`,
+  val:  (f) => `Skript Valuation/Performance/Reporting (05.05.2026), Folie ${f}`,
+};
+
+/* ----- KARTEIKARTEN ------------------------------------------------------ */
+const CARDS = [
+
+  /* ===== VC vs. PE ===== */
+  { id:"c01", topic:"vc-vs-pe", q:"Was ist Venture Capital?",
+    a:"VC ist eine Form von Private Equity: Finanzierung für Startups und kleine Unternehmen mit langfristigem Wachstumspotenzial. VC kann mehr als Geld sein (Kapital, Technologieexpertise, Netzwerke, Management-Erfahrung). Adressat: kleine Firmen mit ausserordentlichem Wachstumspotenzial; oft ohne Zugang zu Kapitalmarkt, Bankkrediten oder anderen Schuldinstrumenten.",
+    src: SRC.p1(17) },
+
+  { id:"c02", topic:"vc-vs-pe", q:"Was ist Private Equity (im engeren Sinn / Buyout)?",
+    a:"PE = Investment-Partnerschaften, die Unternehmen kaufen, einen Wertschöpfungsprozess durchlaufen und nach 5–10 Jahren wieder verkaufen. PE kann private oder börsenkotierte Firmen vollständig oder als Minderheit (z.B. MBO als «club deal») erwerben. Übernahmepreis: typischerweise ein Multiple des (adjustierten) EBITDA. PE-Geld fliesst nicht in die Bilanz der Zielgesellschaft – häufig wird die Bilanz im Gegenteil mit Fremdkapital belastet.",
+    src: SRC.p1(31) },
+
+  { id:"c03", topic:"vc-vs-pe", q:"VC vs. PE – Unterschied im «Stage»",
+    a:"VC: junge, innovative Wachstumsunternehmen («Start-ups»), wenig oder kein Umsatz, häufig verlustträchtig («burn ratio»).\nPE/Buyout: etablierte Firmen mit Umsatz, Gewinn und positivem Cashflow, in stabilen, etablierten Branchen.",
+    src: SRC.p1(69) + " | " + SRC.legal(7) + " | " + SRC.ex1(3) },
+
+  { id:"c04", topic:"vc-vs-pe", q:"VC vs. PE – «Company types / technologies»",
+    a:"VC: Tech (Biotech/Pharma, Medtech, Cleantech, IT) – hohes technologisches Risiko.\nPE: stabile und etablierte Sektoren mit erprobtem Geschäftsmodell.",
+    src: SRC.p1(69) + " | " + SRC.ex1(3) },
+
+  { id:"c05", topic:"vc-vs-pe", q:"VC vs. PE – «Percentage acquired»",
+    a:"VC: Minderheitsbeteiligung; mehrere Investoren, mehrere Finanzierungsrunden.\nPE/Buyout: Mehrheitsbeteiligung; meist nur ein Investor oder wenige, eine Runde.",
+    src: SRC.p1(69) + " | " + SRC.legal(7) + " | " + SRC.ex1(3) },
+
+  { id:"c06", topic:"vc-vs-pe", q:"VC vs. PE – «Return appetite / risk taking»",
+    a:"VC: hohes Risiko – «expected return» 15–20% IRR auf das gesamte Portfolio.\nPE: moderates Risiko – «expected return» 10–15% IRR.",
+    src: SRC.p1(69) + " | " + SRC.ex1(3) },
+
+  { id:"c07", topic:"vc-vs-pe", q:"VC vs. PE – Wohin fliesst das Investorengeld?",
+    a:"VC: Cashflow geht in die Gesellschaft (Bilanzerhöhung des Eigenkapitals → Erhöhung der Liquidität).\nPE/Buyout: Cashflow geht an den Verkäufer (M&A); das Geld fliesst nicht in die Bilanz, die Bilanz wird teilweise mit Fremdkapital belastet.",
+    src: SRC.p1(18,31) + " | " + SRC.legal(7) + " | " + SRC.ex2(32) },
+
+  { id:"c08", topic:"vc-vs-pe", q:"Klausurfrage: Was unterscheidet VC am stärksten von anderen Formen von Private Equity?",
+    a:"Korrekt: «Investment in early-stage, high-growth companies».\nAndere Antworten («Fokus auf Tech-Firmen», «Investment in Public Companies», «Short-term returns») sind in der Klausur falsch.",
+    src: SRC.ex1(14) },
+
+  { id:"c09", topic:"vc-vs-pe", q:"Was ist Corporate Venture Capital (CVC)?",
+    a:"CVC-Fonds investieren in Wachstumsopportunitäten mit dem Backing eines einzelnen Konzerns – z.B. Nestlé, Roche, Novartis, Swisscom, Helvetia, Helsana. Motiv ist oft strategisches Monitoring (Technologie/Wettbewerb) zusätzlich zum finanziellen Return.",
+    src: SRC.p1(18) },
+
+  /* ===== Fund Performance ===== */
+  { id:"c10", topic:"fund-perf", q:"Formel: DPI",
+    a:"DPI = Distributions to Paid-In = Σ Ausschüttungen ÷ Σ einbezahltes Kapital.\nAuch «realised multiple». Ein DPI von 1.0 = 100 % des einbezahlten Kapitals wurde bereits an den Investor zurückbezahlt.",
+    src: SRC.val(15) + " | " + SRC.val(34) },
+
+  { id:"c11", topic:"fund-perf", q:"Formel: RVPI",
+    a:"RVPI = Residual Value to Paid-In = NAV ÷ Σ einbezahltes Kapital.\nAuch «unrealised multiple». Zeigt, wie sich der Wert des noch im Fonds verbliebenen Kapitals zu den kumulierten Einzahlungen verhält.",
+    src: SRC.val(15) + " | " + SRC.val(34) },
+
+  { id:"c12", topic:"fund-perf", q:"Formel: TVPI",
+    a:"TVPI = Total Value to Paid-In = DPI + RVPI = (Distributions + NAV) ÷ Paid-In.\nNach vollständiger Realisierung deckt sich TVPI mit dem «Investment Multiple».",
+    src: SRC.val(15) },
+
+  { id:"c13", topic:"fund-perf", q:"Was ist IRR (Internal Rate of Return)?",
+    a:"IRR ist der Diskontsatz, bei dem der Net Present Value aller Cashflows = 0 wird. Berechnet als annualisierte effektive Rendite mit täglichen Cashflows und vierteljährlichen/jährlichen Bewertungen.\nIRR berücksichtigt – im Gegensatz zu DPI/TVPI – den Zeitwert des Geldes (Timing der Cashflows).",
+    src: SRC.val(12) + " | " + SRC.val(33) },
+
+  { id:"c14", topic:"fund-perf", q:"Was ist NAV (Net Asset Value, «residual value»)?",
+    a:"NAV = Endwert des Fonds für die gemessene Periode – netto nach Carry. Beinhaltet den Fair Value des nicht realisierten Portfolios (plus Cash, sonstige Aktiva und nach Adjustierung für Carry).",
+    src: SRC.val(9) + " | " + SRC.val(11) },
+
+  { id:"c15", topic:"fund-perf", q:"Was ist «Paid-In Capital» / «Contributions»?",
+    a:"Tatsächlich einbezahltes Geld in die Partnerschaft – auch «Capital Calls». Es ist die Bezugsgrösse für DPI, RVPI und TVPI.",
+    src: SRC.val(9) },
+
+  { id:"c16", topic:"fund-perf", q:"Was ist «Undrawn Commitment»?",
+    a:"Undrawn Commitment = Capital Committed − Cash In (Drawn Down). Das ist der Teil des Commitments des LP, der noch nicht abgerufen wurde.",
+    src: SRC.val(9) + " | " + SRC.ex2(12) },
+
+  { id:"c17", topic:"fund-perf", q:"Was ist «Vintage Year»?",
+    a:"Vintage Year = Jahr, in dem der Fonds den ersten Cashflow hatte. Wichtig für Vergleich von Fonds: Fonds verschiedener Vintage Years sind vor vollständiger Realisierung schwer vergleichbar.",
+    src: SRC.val(9) + " | " + SRC.val(27) },
+
+  { id:"c18", topic:"fund-perf", q:"Was ist «Pooled Return»?",
+    a:"Pooled Return = Portfolio-Return durch Bündelung der Cashflows mehrerer Fonds (so, als ob alles aus einer Investition käme).",
+    src: SRC.val(9) },
+
+  { id:"c19", topic:"fund-perf", q:"Gross vs. Net Return – worin besteht der Unterschied?",
+    a:"Gross Return: Cash In-/Outflows aus den Investments + Fair Value des nicht realisierten Portfolios. KEIN Abzug von Carry, Management Fees oder anderen Charges.\nNet Return: Cashflows zwischen Fonds und Investor; Carry, Management Fees und alle Charges sind abgezogen; Fair Value des unrealisierten Portfolios inkl. Cash, abgezogen Carry.",
+    src: SRC.val(11) },
+
+  { id:"c20", topic:"fund-perf", q:"Klausuraufgabe Task 12: Wie berechnet man DPI eines Fonds?",
+    a:"DPI = Cash Out (= an LPs zurückgeflossen) ÷ Cash In (= eingezahltes Kapital).\nBeispiel SV Life Sciences Fund IV in der Klausur: Cash In = 15 Mio., Cash Out = 32.5 Mio. → DPI ≈ 32.5 / 15 = 2.17.",
+    src: SRC.ex2(12) + " | " + SRC.val(15) },
+
+  { id:"c21", topic:"fund-perf", q:"Klausuraufgabe Task 12: Wie berechnet man NAV eines Fonds aus der Tabelle?",
+    a:"NAV = «Remaining Value». In der Klausur-Tabelle der California-Emerging-Ventures-Liste ist «Remaining Value» direkt die Spalte mit dem heute noch im Fonds steckenden Wert. Beispiel Vector Capital IV: Remaining Value ≈ 57.57 Mio. USD.",
+    src: SRC.ex2(12) },
+
+  { id:"c22", topic:"fund-perf", q:"Klausuraufgabe Task 12: Wie berechnet man RVPI in %?",
+    a:"RVPI (%) = Remaining Value ÷ Cash In × 100. Beispiel Vector Capital IV: 57.57 / 24.68 ≈ 233 %.",
+    src: SRC.ex2(12) + " | " + SRC.val(15) },
+
+  { id:"c23", topic:"fund-perf", q:"Klausuraufgabe Task 12: Wie berechnet man «Undrawn Commitment»?",
+    a:"Undrawn Commitment = Capital Committed − Cash In (Drawn Down). Beispiel Upfront III: Committed 5 Mio. − Cash In 1.56 Mio. ≈ 3.44 Mio. USD undrawn.",
+    src: SRC.ex2(12) },
+
+  /* ===== Valuation & Cap Table ===== */
+  { id:"c24", topic:"valuation", q:"Pre-Money Valuation – Definition",
+    a:"Bewertung der Gesellschaft VOR der Kapitalerhöhung der neuen Runde. Faustregel (Wenger Vieli): Je tiefer die Pre-Money-Valuation, desto stärker die Dilution für die Altaktionäre.",
+    src: SRC.legal(24) + " | " + SRC.ex1(2) },
+
+  { id:"c25", topic:"valuation", q:"Post-Money Valuation – Definition",
+    a:"Post-Money = Pre-Money + Investment der neuen Runde. Sie entspricht der Gesamtbewertung der Gesellschaft direkt nach der Kapitalerhöhung.",
+    src: SRC.legal(24) + " | " + SRC.ex1(2) },
+
+  { id:"c26", topic:"valuation", q:"Formel: Investor-Anteil in % nach der Runde",
+    a:"Investor-Anteil % = Investment ÷ Post-Money-Valuation.\nBeispiel (Wenger Vieli, Folie 24): Pre 10 Mio., Investment 3 Mio., Post 13 Mio. → Investor 3/13 ≈ 23.08 %; Altaktionäre 76.92 %.",
+    src: SRC.legal(24) },
+
+  { id:"c27", topic:"valuation", q:"Faustregel: Pre-Money und Dilution",
+    a:"Je tiefer die Pre-Money-Bewertung bei gleicher Investmentsumme, desto grösser der Dilution-Effekt für die bisherigen Aktionäre. (Beispieltabelle Wenger Vieli zeigt Dilution 13 %–43 % bei gleicher Investmentsumme.)",
+    src: SRC.legal(24) },
+
+  { id:"c28", topic:"valuation", q:"Faustregel: Investmentsumme und Dilution",
+    a:"Je grösser die Investmentsumme bei gleicher Pre-Money-Valuation, desto grösser der Dilution-Effekt für die bisherigen Aktionäre.",
+    src: SRC.legal(25) },
+
+  { id:"c29", topic:"valuation", q:"Klausurfrage Task 2: Wie beschreiben Sie Pre- und Post-Money-Valuation?",
+    a:"Pre-Money = Unternehmenswert vor der Kapitalerhöhung der aktuellen Runde. Post-Money = Pre-Money + neue Investition (= Unternehmenswert nach Kapitalerhöhung). Aus Post-Money und Investmentsumme ergeben sich Beteiligungsquote und Verwässerung der Altaktionäre.",
+    src: SRC.ex1(2) + " | " + SRC.legal(24) },
+
+  { id:"c30", topic:"valuation", q:"Klausurfrage Task 1: Was macht die Bewertung junger Unternehmen schwieriger als die Bewertung später Stages? (3 Punkte – 3 Items)",
+    a:"Mögliche Items aus dem Skript:\n• Initial kein Track Record / keine Umsätze (Unsicherheit über Erfolg der Produktidee).\n• Hoher Anteil immaterieller Werte (intangible assets), schwer zu bewerten.\n• Hoher Kapitalbedarf bei gleichzeitig hohem Risiko des Kapitalverlusts; signifikantes Wachstumspotenzial schwer quantifizierbar.",
+    src: SRC.ex1(1) + " | " + SRC.p1(58) },
+
+  { id:"c31", topic:"valuation", q:"Cap Table – Bedeutung und «fully-diluted»-Prinzip",
+    a:"Cap Table zeigt alle Aktien, Optionen und konvertiblen Instrumente. «Fully-diluted» = unter Annahme, dass alle Optionen und Convertibles ausgeübt/umgewandelt sind. Bei Verhandlungen unterscheidet man «allocated vs. unallocated options» und convertible instruments.",
+    src: SRC.legal(28) + " | " + SRC.legal(19) },
+
+  { id:"c32", topic:"valuation", q:"Klausurfrage Task 6: Wie berechnet man Post-Money und Investment-Multiple (HBM/Numab)?",
+    a:"Post-Money = Pre-Money + Investment der jüngsten Runde (aus der Tabelle: Fair Value ÷ Ownership × 100 ergibt Post-Money der letzten Runde der jeweiligen Position).\nInvestment Multiple = Total Proceeds ÷ Total Investment (im Beispiel: Upfront-Cash-Erlöse aus der Numab-Position ÷ Numab-Investment des HBM-Portfolios).",
+    src: SRC.ex1(6) },
+
+  { id:"c33", topic:"valuation", q:"Investment Multiple (Beispiel u-blox aus dem Skript)",
+    a:"u-blox: Total Investment 16.6 Mio. CHF; Total Proceeds (IPO-Erlöse + Distribution PPE Fund) = 98 Mio. CHF.\nInvestment Multiple = 98 / 16.6 = 5.9x. IRR über >10 Jahre = 17.5 %.",
+    src: SRC.p2(18) },
+
+  /* ===== Liquidation Preference ===== */
+  { id:"c34", topic:"liq-pref", q:"1x non-participating Liquidation Preference – wie funktioniert die Waterfall?",
+    a:"«Best Practice». Bei einem Exit-/Liquidations-Event:\n1. In erster Priorität an Preferred-Shareholder pro rata bis zum Preference Amount (i. d. R. dem von ihnen einbezahlten Issue Price);\n2. In zweiter Priorität an die Common-Shareholder pro rata.\nPreferred-Shareholder müssen wählen zwischen (i) ihrem Issue Price ODER (ii) dem Betrag, den sie nach Umwandlung in Common bekommen würden – der höhere Betrag gilt.",
+    src: SRC.legal(26) + " | " + SRC.ex2(30) },
+
+  { id:"c35", topic:"liq-pref", q:"Klausurfrage Task 30 (Excerpt II) – Welche Antwort ist korrekt?",
+    a:"KORREKT: «Proceeds gehen in erster Priorität an Preferred-Shareholder bis zum höheren von (i) Issue Price ODER (ii) dem Betrag, den sie als Common bekommen hätten; in zweiter Priorität an die Common-Shareholder bis zum Issue Price».\nFALSCH ist insb. die Antwort, in der die Preferred in zweiter Runde nochmals MIT den Common pro rata teilen – das wäre PARTICIPATING, nicht non-participating.",
+    src: SRC.ex2(30) + " | " + SRC.legal(26) },
+
+  { id:"c36", topic:"liq-pref", q:"Participating vs. Non-participating Liquidation Preference",
+    a:"Non-participating: Preferred wählen entweder ihre Preference (Issue Price) ODER konvertieren in Common (kein «doppeltes» Bedienen).\nParticipating: Preferred bekommen zunächst ihre Preference UND nehmen danach pro rata zusätzlich an der Verteilung der Restmasse teil – «double dip». Achtung mit «multiple preferences» (z.B. 2x participating) → führt zu Misalignment mit Foundern.",
+    src: SRC.legal(26,28) },
+
+  { id:"c37", topic:"liq-pref", q:"Was bedeutet «Exit/Liquidation Event» in der Klausel?",
+    a:"Sale, Transfer oder Disposal von Aktien (Einzeltransaktion oder Serie zusammenhängender Transaktionen), die zu einem «change of control» führen, oder der Verkauf aller / substantiell aller / eines Hauptteils der Aktiven der Gesellschaft.",
+    src: SRC.legal(26) },
+
+  /* ===== Term Sheet & Klauseln ===== */
+  { id:"c38", topic:"termsheet", q:"Term Sheet – Bedeutung und Struktur",
+    a:"Startpunkt des Investitionsprozesses. Enthält ökonomische und rechtliche Key Terms; Mix aus bindenden und nicht bindenden Klauseln.\nTypische Inhalte: Parteien; Economics (Valuation/Share Price, Preference Rights, Anti-Dilution, Milestones, Reps & Warranties); Control (Quorum/Veto-Rechte, Board, Transfer Restrictions ROFR/Drag/Tag, Founders' Vesting, Non-Compete, Information Rights); plus Exclusivity, Costs, Confidentiality, Law/Jurisdiction.",
+    src: SRC.legal(17,18) },
+
+  { id:"c39", topic:"termsheet", q:"Anti-Dilution – Definition & Vorsicht",
+    a:"Schutz gegen Verwässerung bei einer Down Round (neue Runde tiefer als die vorhergehende). Kompensation für den bestehenden Investor durch Ausgabe zusätzlicher Aktien.\nVorsicht mit «Full Ratchet»-Formel (zu investorenfreundlich); Ausnahmen (z.B. ESOP, M&A) festlegen; mit «Time Limitations» und «Pay-to-Play» versehen.",
+    src: SRC.legal(28) + " | " + SRC.legal(20) },
+
+  { id:"c40", topic:"termsheet", q:"«Pay-to-Play»-Klausel",
+    a:"Investoren verlieren ihren Anti-Dilution-Schutz (oder Preferred-Status), wenn sie an einer Folgerunde NICHT pro rata mitziehen. Verhindert «Trittbrettfahrer» auf vergünstigten Schutzrechten.",
+    src: SRC.legal(28) },
+
+  { id:"c41", topic:"termsheet", q:"Drag-Along-Klausel",
+    a:"Eine Mehrheit (typischerweise definierter Schwellenwert) kann die Minderheit zwingen, ihre Aktien zu denselben Konditionen mitzuverkaufen, um einen Exit zu ermöglichen. Schwellenwerte sorgfältig wählen.",
+    src: SRC.legal(16) + " | " + SRC.legal(20) + " | " + SRC.legal(34) },
+
+  { id:"c42", topic:"termsheet", q:"Tag-Along-Klausel",
+    a:"Schutz der Minderheit: Wenn ein Mehrheitsaktionär seine Aktien verkauft, dürfen Minderheitsaktionäre pro rata zu denselben Konditionen mitverkaufen.",
+    src: SRC.legal(16) + " | " + SRC.legal(20) + " | " + SRC.legal(34) },
+
+  { id:"c43", topic:"termsheet", q:"ROFR – Right of First Refusal",
+    a:"Bevor ein Aktionär Aktien an einen Dritten verkauft, müssen sie zuerst den bestehenden Aktionären (oder der Gesellschaft) zu denselben Bedingungen angeboten werden. ROFR sollte nicht über das Drag-Along-Recht gestellt werden.",
+    src: SRC.legal(20) + " | " + SRC.legal(34) },
+
+  { id:"c44", topic:"termsheet", q:"Founders' Vesting – warum und wie?",
+    a:"Aktien der Gründer «vesten» über Zeit: Verlässt der Gründer das Unternehmen frühzeitig, fallen unvestete Aktien an die Gesellschaft / die übrigen Aktionäre zurück. Schwer zu akzeptieren, aber essenziell in den ersten Jahren.",
+    src: SRC.legal(33,34) },
+
+  { id:"c45", topic:"termsheet", q:"Veto-Rechte / Protective Rights des Investors",
+    a:"Bei welchen Beschlüssen braucht es Investorenzustimmung? Empfehlung: Veto-Rechte auf wichtige Entscheidungen begrenzen; keine Vetorechte für kleine Investoren ohne strategischen Mehrwert; KEIN Veto auf weitere Finanzierungen, wenn diese bereits genehmigt sind.",
+    src: SRC.legal(31,34) },
+
+  { id:"c46", topic:"termsheet", q:"Board Composition – Empfehlung",
+    a:"Typisch 3–5 Boardmitglieder. Investoren haben das Recht, als Gruppe vertreten zu sein. Wichtigkeit: unabhängiges Boardmitglied. Vorsicht mit Boardobserver-Sitzen (sparsam vergeben).",
+    src: SRC.legal(34) },
+
+  { id:"c47", topic:"termsheet", q:"Non-Competition / Non-Solicitation",
+    a:"Wettbewerbsverbot für Gründer und Key-Manager; «Non-Solicitation» bezüglich Startup-Mitarbeitenden; Konventionalstrafe sichert Compliance mit Non-Compete, Non-Solicit und übrigen SHA-Klauseln ab.",
+    src: SRC.legal(34) },
+
+  { id:"c48", topic:"termsheet", q:"Founders' Vorsicht: «standard & customary» im Term Sheet",
+    a:"Investoren formulieren häufig pragmatische, scheinbar «standard»-Klauseln, die in der Praxis aber ihrer eigenen Notion von «standard» entsprechen. In Liquiditätsdruck-Phasen führt das zu nachteiligen Klauseln. Empfehlung: früh den (rechtlichen) Berater einbeziehen, Verhandlungsführung im Term Sheet behalten.",
+    src: SRC.legal(36) },
+
+  /* ===== Equity Round Documents ===== */
+  { id:"c49", topic:"fund-docs", q:"Welche Dokumente bilden eine Equity Financing Round?",
+    a:"• Term Sheet (Start)\n• Investment Agreement (IA): Subscription, contribution, PoA, Reps & Warranties der Gründer/Gesellschaft, Indemnification, Cap Table\n• Shareholders' Agreement (SHA): Quorum/Veto, Transfer Restrictions, Liquidation/Dividend Preferences, Anti-Dilution\n• Articles of Association (Statuten, nach OR) & Board Regulations\n• Ancillary: ESOP/PSOP, Employment Contracts, IP Assignments",
+    src: SRC.legal(16) },
+
+  { id:"c50", topic:"fund-docs", q:"Klausurfrage Task 31: Welches Dokument gehört NICHT zu einer Equity Financing Round?",
+    a:"KORREKT (gehört NICHT zur Equity Round): «Convertible Loan Agreement» – ein Wandeldarlehen ist eine Debt-Variante / Hybridfinanzierung, KEIN Equity-Round-Dokument.\nDie übrigen gehören dazu: Articles of Association & Board Regulations, Employee Incentive Plans, Investment & Shareholders' Agreement, IP Assignment Contracts.",
+    src: SRC.ex2(31) + " | " + SRC.legal(16) },
+
+  { id:"c51", topic:"fund-docs", q:"Was ist der Zweck eines Shareholders' Agreement (SHA)?",
+    a:"Klausurantwort: «To outline the rights and obligations of the shareholders».\nIm SHA werden u.a. Board-/Management-Zusammensetzung, Stimm-/qualifizierte Mehrheiten, Preferential Rights, Conversion, Anti-Dilution Adjustment, weitere Finanzierungsrunden, Informationspflichten, Transferbeschränkungen, Exit-Provisions (Tag/Drag, IPO, Call/Put) und Non-Compete geregelt.",
+    src: SRC.ex1(16) + " | " + SRC.legal(20) },
+
+  { id:"c52", topic:"fund-docs", q:"Was ist die Rolle des General Partner (GP) in einem VC-Fonds?",
+    a:"Klausurantwort: «Manages the fund's investments and makes decisions on behalf of the fund».\nGP hat Kontrolle über das Management und unbeschränkte Haftung. Wird über Management Fee (1.0–2.5 %) und Carried Interest (typ. 20 %) entschädigt; Manager-Commitment typischerweise ≥ 1 % der Fondsgrösse.",
+    src: SRC.ex1(15) + " | " + SRC.p2(6) + " | " + SRC.legal(12) },
+
+  { id:"c53", topic:"fund-docs", q:"Was ist die Rolle des Limited Partner (LP)?",
+    a:"Klausurantwort: «They provide capital to the fund and receive returns based on the fund's performance».\nLPs sind typischerweise passive Investoren ohne aktive Mitsprache, Haftung beschränkt auf die Investmentsumme. Capital Calls erfolgen «as needed»; Distributions folgen der Waterfall (80:20-Regel, Hurdle 8 % p.a.).",
+    src: SRC.ex1(17) + " | " + SRC.legal(12) },
+
+  { id:"c54", topic:"fund-docs", q:"Investment Agreement – wichtigste Inhalte",
+    a:"Parteien (Gesellschaft, Investor(en), Gründer, weitere Aktionäre); Amount/Tranchen, Investment-Typ; Price/Type of Shares; Cap Table und Pre-/Post-Money-Valuation; Use of Funds; Milestones / Business Plan; ESOP; Reps & Warranties; Closing Conditions; Hinterlegung Aktien/Zertifikate.",
+    src: SRC.legal(19) },
+
+  { id:"c55", topic:"fund-docs", q:"Typische VC-Fonds-Struktur (Limited Partnership)",
+    a:"Kommanditgesellschaft / Limited Partnership.\n• Laufzeit 10–12 Jahre\n• Mindestcommitment USD 5–10 Mio. (Venture-Fonds: EUR 0.5–5 Mio.)\n• Portfolio ~10–30 Investments\n• Management Fee 2 – 2.5 % auf Committed Capital (Venture)\n• Carry 20 %, Hurdle 8 % p.a.\n• Manager-Commitment ≥ 1 %",
+    src: SRC.p2(6) + " | " + SRC.val(3) + " | " + SRC.legal(12) },
+
+  /* ===== Carry, Hurdle, Fees ===== */
+  { id:"c56", topic:"carry-fees", q:"Carried Interest – Definition",
+    a:"Gewinnbeteiligung des GP an den vom Fonds erzielten Erträgen. Erst NACH Rückzahlung des Committed Capital und einer Mindestrendite (Hurdle Rate) an die LPs werden die verbleibenden Gewinne aufgeteilt – typisch 20 % an den GP («80:20-Regel»).",
+    src: SRC.p2(7) + " | " + SRC.legal(12) },
+
+  { id:"c57", topic:"carry-fees", q:"Hurdle Rate – Definition",
+    a:"Mindestverzinsung pro Jahr für LPs, BEVOR der GP an den Gewinnen partizipiert. Üblicherweise 8 % p.a. Manche Venture-Fonds verzichten auf eine Hurdle Rate.",
+    src: SRC.val(3) + " | " + SRC.p2(7) + " | " + SRC.legal(12) },
+
+  { id:"c58", topic:"carry-fees", q:"Management Fee – Höhe und Basis",
+    a:"Typischerweise 1.0 – 2.5 % des Committed Capital p.a. (LBO-Bereich oft 2 % üblich). Venture-Fonds tendenziell höher (2 – 2.5 %), Buyout 1.5 – 2.0 %, Secondary 1 %, Fund of Funds ~1 %.",
+    src: SRC.p1(74) + " | " + SRC.val(3) },
+
+  { id:"c59", topic:"carry-fees", q:"Distribution Waterfall – die Reihenfolge",
+    a:"1) Repayment of Capital (Commitment) an LPs.\n2) Distribution bis Hurdle Rate (8 % p.a.) an LPs.\n3) Catch-up an GP.\n4) Split aller weiteren Distributions (typisch 80 % LP / 20 % GP = Carry).",
+    src: SRC.val(6) + " | " + SRC.legal(12) },
+
+  { id:"c60", topic:"carry-fees", q:"Total Expense Ratio (TER) bei PE – Besonderheiten",
+    a:"Fees basieren auf Commitment, nicht NAV → in der frühen Phase (J-Curve) sehr hoher TER in % NAV. Am Lebensende stark erhöht durch Carried Interest. Risiko: Anreiz für GP, möglichst früh zu investieren, um NAV zu steigern.",
+    src: SRC.val(37,38) },
+
+  /* ===== Stages / VC-Prozess ===== */
+  { id:"c61", topic:"stages", q:"VC-Stages: Pre-Seed",
+    a:"Früheste Phase. Gründer versuchen, eine Idee in einen konkreten Businessplan zu überführen. Oft mit Aufnahme in einen Inkubator/Akzelerator und früher Mentoring-Phase.",
+    src: SRC.p1(19) + " | " + SRC.legal(6) },
+
+  { id:"c62", topic:"stages", q:"VC-Stages: Seed",
+    a:"Erste Produktauflage; noch keine Umsatzströme. VC finanziert sämtliche operativen Tätigkeiten. Family & Friends sowie Business Angels sind in dieser Phase aktiv.",
+    src: SRC.p1(19) + " | " + SRC.legal(6) },
+
+  { id:"c63", topic:"stages", q:"VC-Stages: Early Stage / Series A–C",
+    a:"Produkt entwickelt; Skalierung der Produktion/Sales bis zur Self-Sustainability. Mehrere Runden – typischerweise Series A, B, C, D – mit VC als Hauptkapitalgeber.",
+    src: SRC.p1(19) + " | " + SRC.legal(6) },
+
+  { id:"c64", topic:"stages", q:"VC-Investitionsprozess (5 Phasen)",
+    a:"1. Screening 2. Selection 3. Investment / Final Closing 4. Board-Arbeit und Coaching 5. Exit.\nErgänzend: Krisenmanagement, Folgekapital, IPO/Trade-Sale-Vorbereitung, After-IPO-Support. Erfolg meist nur dort, wo VC aktiv (Board, Advisor, temporärer CEO) involviert war.",
+    src: SRC.p2(16) },
+
+  { id:"c65", topic:"stages", q:"VC-Auswahlkriterien beim Business Plan",
+    a:"• Markt (Verständnis, Wachstumsmarkt?)\n• USP / verteidigbare Wettbewerbsvorteile / Bottleneck-Strategie\n• Gründerteam (lernfähig, erweiterbar)\n• Skalierbarkeit / profitables Wachstum\n• Value Increase in 3 Jahren?\n• VC-Beitrag (Coaching, Netzwerk, Folgerunden)\n• Exit-Optionen (Trade Sale, IPO, Secondary)",
+    src: SRC.p2(17) },
+
+  { id:"c66", topic:"stages", q:"Vier Stages eines VC-Investitionsentscheids (Wenger Vieli)",
+    a:"I. Submission of Business Plan – Pitch & Materialien\nII. First Meeting – persönliche Vorstellung (nur ~2 % der Pläne)\nIII. Due Diligence – schneller Reality-Check (~1 % der Pläne)\nIV. Term Sheet finalisieren – Verhandlung, Rechtsdokumente, Funds-Release",
+    src: SRC.p1(75,76) },
+
+  /* ===== Exit ===== */
+  { id:"c67", topic:"exit", q:"Klausurfrage Task 18: Was bedeutet «Exit» im VC-Prozess? (mehrere richtig)",
+    a:"KORREKT (Kombination):\n• IPO der Gesellschaft\n• Verkauf der Aktien des Startups, um den Return zu realisieren\nFALSCH: «Liquidation» (= Auflösung der Assets im engeren Sinn) und «Formation of a new startup».",
+    src: SRC.ex1(18) },
+
+  { id:"c68", topic:"exit", q:"Exit-Formen aus dem Skript",
+    a:"Trade Sale (Verkauf an industriellen Käufer), IPO (Börsengang), Secondary Sale (Verkauf an einen anderen Finanzinvestor). Bei VC: Trade Sale und IPO dominieren; bei PE: Trade Sale, IPO und Secondary möglich.",
+    src: SRC.p1(69) },
+
+  { id:"c69", topic:"exit", q:"Durchschnittliche Halteperiode einer Portfoliogesellschaft",
+    a:"Etwa fünf Jahre (Stand 2021). Mit dem zuletzt «fast geschlossenen» IPO-Fenster verlängert sich die Halteperiode tendenziell.",
+    src: SRC.p1(57) },
+
+  { id:"c70", topic:"exit", q:"Exit-Beispiel u-blox (Partners Group)",
+    a:"Investment 2000–2005: 16.6 Mio. CHF.\nPartial-Exit beim IPO 2007: PG verkauft 40 % → +34 Mio. CHF.\nNov. 2010: Termination des PPE-Fonds, Distribution von 19 % an u-blox-Aktien (Wert) → +64 Mio. CHF.\nTotal Proceeds 98 Mio. CHF → Multiple 5.9x über >10 J., IRR 17.5 %.",
+    src: SRC.p2(18) },
+
+  /* ===== J-Curve & Fund Mechanics ===== */
+  { id:"c71", topic:"j-curve", q:"Was ist die J-Curve im PE/VC?",
+    a:"Typisches Cashflow-Muster: In der Investitionsperiode überwiegen Capital Calls (negativer Net-CF), erst später folgen Distributionen aus Exits → positive Performance. Die kumulierten Cashflows formen ein «J» über 10–12 Jahre. Bewertungsanpassungen und erste Realisationen drehen die Kurve.",
+    src: SRC.val(5) + " | " + SRC.p2(8) },
+
+  { id:"c72", topic:"j-curve", q:"Wie lässt sich die J-Curve verkürzen?",
+    a:"• Secondary-Transaktionen: Kauf bestehender Portfolios → frühere Returns + Diversifikation über Vintage Years; «Blind Pool»-Risk niedriger (Portfolio bekannt).\n• Co-Investments und Evergreen-Fonds.",
+    src: SRC.p2(9,10) },
+
+  { id:"c73", topic:"j-curve", q:"Co-Investments – Vor- und Nachteile",
+    a:"Vorteile:\n• Investments alongside diverser PE-Fonds → Diversifikation\n• Tiefere Fees (ab Investmentzeitpunkt, nicht ab Commitment)\nNachteile:\n• Meist nur Minderheitsrechte in den Gesellschaften\nWird Bestandsinvestoren ohne zusätzliche Fees angeboten. Verkürzt und flacht die J-Curve.",
+    src: SRC.p2(11) },
+
+  { id:"c74", topic:"j-curve", q:"Evergreen-Fonds – Charakteristika",
+    a:"• Perpetual Fund Life; Investoren können in der Regel quartalsweise ein-/austreten.\n• Investitionsminimum oft ab USD 10'000–25'000; keine zusätzlichen Capital Calls.\n• Kapital wird sofort in bestehende Pipeline investiert (kein Blind Pool); Distributions werden automatisch reinvestiert.\n• Rücknahmen typischerweise limitiert (% der Total Assets pro Quartal).\n• Bewertung über NAV monatlich durch unabhängige Dritte.",
+    src: SRC.p2(13) },
+
+  { id:"c75", topic:"j-curve", q:"Fund of Funds (FoF) – Bedeutung",
+    a:"FoF investiert in mehrere VC/PE-Fonds. Vorteil: Diversifikation über Vintage Years, Strategien, Regionen. Risiko: Doppelte Fee-Schicht. Im VC-Bereich entscheidend, weil ein FoF die Wahrscheinlichkeit eines Teilverlusts erheblich reduziert.",
+    src: SRC.p2(34) },
+
+  { id:"c76", topic:"j-curve", q:"VC-Fund-Mechanik – «J-Curve»-Beispiel mit Commitment",
+    a:"Beispiel EUR 10 Mio. Commitment, Laufzeit 12 J. Capital wird in den ersten Jahren abgerufen (Investment Period 4–6 J.), erste Distributions ab Jahr 4–6, Realization Period bis Jahr 10–12. Ergebnis: kumulierter Net-CF erst negativ, dann steil positiv (J-Form).",
+    src: SRC.val(5) },
+
+  /* ===== Swiss VC / Ecosystem ===== */
+  { id:"c77", topic:"swiss", q:"Klausurfrage Task 13: Rolle von «Venture Kick» im Schweizer Startup-Ökosystem?",
+    a:"KORREKT: «Venture Kick is one of Switzerland's largest startup accelerator programs».\nDie anderen Aussagen treffen nicht zu (kein Inkubator, kein VC-Fonds, charakterisiert nicht primär «high technological risk»).",
+    src: SRC.ex1(13) },
+
+  { id:"c78", topic:"swiss", q:"SECA – Swiss Private Equity & Corporate Finance Association",
+    a:"1984 als SVCA gegründet, 1994 in SECA umbenannt. 587 Mitglieder (2024). 7 verschiedene Chapters. Veranstaltet u.a. SECA-Konferenz, PE & VC-Workshops, Young-SECA-Events. Publikationen: Yearbook (est. 2001), Private Markets Guide, SECA Booklets/Series.",
+    src: SRC.p1(7,9,10) },
+
+  { id:"c79", topic:"swiss", q:"Swiss Venture Capital Report (SVCR)",
+    a:"Seit 2012. Jährliche Publikation mit Übersicht über Schweizer Start-up-Investments, Finanzierungsrunden, Investments und Exits. Mid-year-Update im Juli.",
+    src: SRC.p1(10) },
+
+  { id:"c80", topic:"swiss", q:"Herausforderungen Swiss VC-Ökosystem",
+    a:"• Reift im Vergleich zu USA/UK noch nach\n• Institutionelle Schweizer Investoren mit nahezu 0 % VC-Allokation\n• Sub-kritische Fondsgrössen (< CHF 100 Mio. im Schnitt)\n• Starke Abhängigkeit von ausländischem Kapital\n• Scale-up-Schwäche\n• Risiko, dass Startups zu früh verkauft werden",
+    src: SRC.p1(100) },
+
+  { id:"c81", topic:"swiss", q:"Unterschied Inkubator vs. Akzelerator",
+    a:"Inkubator: längeres Programm in einer frühen Phase, oft mit Infrastruktur, Mentoring und Ressourcen. Akzelerator: zeitlich begrenztes Programm (z.B. 3–6 Monate) mit Coaching, Pitching und oft kleinem Funding (Venture Kick = einer der grössten Schweizer Akzeleratoren).",
+    src: SRC.ex1(13) + " | " + SRC.p1(19) },
+
+  /* ===== VC-Auswahlfragen für Gründer ===== */
+  { id:"c82", topic:"process", q:"Klausurfrage Task 4: Fragen an den VC zum Fund & Strategic Focus (1 Pt)",
+    a:"Beispielhafte Fragen aus dem Vorlesungsstoff:\n• Welche Stage/Sektoren/Geografien deckt der Fonds ab?\n• Wie gross ist der Fonds, in welcher Investitionsphase befindet er sich (Investment vs. Harvest)?\n• Wie viel ist noch für Folgerunden reserviert?\n• Welche Beteiligungsquote/Ticketgrösse strebt er an?",
+    src: SRC.ex1(4) },
+
+  { id:"c83", topic:"process", q:"Klausurfrage Task 4: Fragen zum «Value-Add» des VC (1 Pt)",
+    a:"• Was bringt der VC ausser Geld? (Coaching, Netzwerk, weitere Investoren, internationale Verbindungen)\n• Welche Board-/Operating-Erfahrung im relevanten Sektor?\n• Welche konkreten Beispiele für aktive Unterstützung in Portfoliogesellschaften?",
+    src: SRC.ex1(4) + " | " + SRC.p2(17) },
+
+  { id:"c84", topic:"process", q:"Klausurfrage Task 4: Reference-Check eines VC (2 Pt) – Was fragen Sie einen anderen Gründer?",
+    a:"• Wie verhält sich der VC in guten und in schlechten Zeiten?\n• Wurden Zusagen (Folgerunden, Coaching, Netzwerk) eingehalten?\n• Wie ist die Kommunikation auf Board-Ebene?\n• Hat der VC Mehrwert über die Kapitalbereitstellung hinaus geliefert?\n• Würden Sie ihn wieder als Investor wählen?",
+    src: SRC.ex1(4) },
+
+  { id:"c85", topic:"process", q:"Murphy's Law im VC – aus dem Skript",
+    a:"Für alle Investments gilt: «It takes longer than expected» und «It costs more than planned». Der Businessplan ist wichtig, aber nur eine Woche gültig – Strategie und Taktik sind alle 3 Monate neu zu justieren.",
+    src: SRC.p2(16) },
+
+  /* ===== Portfolio Approach ===== */
+  { id:"c86", topic:"portfolio", q:"Typische Verteilung in einem guten VC-Fonds (20 Investments)",
+    a:"• 3 Failures – Investment verloren\n• 8 «survive» – partial return\n• 7 «on track» – Return 1x bis 3x\n• 2 «excellent» – Return 5x bis 10x oder mehr\n→ Insgesamt 3x Return, 25 % IRR (Beispiel).\nInvestmentperiode: min. 3 J., typ. 5 J., oft bis 10 J.",
+    src: SRC.p2(20) },
+
+  { id:"c87", topic:"portfolio", q:"Verlustrisiko Direct vs. VC-Fonds vs. Fund of Funds",
+    a:"• Direktes Investment: Wahrscheinlichkeit Totalverlust ~30 %.\n• VC-Fonds: Wahrscheinlichkeit Totalverlust ~1 %; partieller Verlust 5 – 15 %.\n• Fund of Funds (FoF): Wahrscheinlichkeit auch eines partiellen Verlusts sehr gering.",
+    src: SRC.p2(34) },
+
+  { id:"c88", topic:"portfolio", q:"«Spray, Don't Pray» – Bedeutung",
+    a:"Breit diversifizierte VC-Fund-of-Funds mit gutem Erwartungsreturn liefern das beste Risiko-/Returnprofil; einzelne Direktinvestments sind risikoreich (30 % Totalverlust). Single-Fonds liefern Upside, aber hohes Verlustrisiko.",
+    src: SRC.p2(35) },
+
+  /* ===== Private vs. Public Markets ===== */
+  { id:"c89", topic:"private-mk", q:"Globale Grösse Public vs. Private Markets (Stand 2024/25)",
+    a:"• Obligationenmarkt USD 145'100 Mrd.\n• Aktienmarktkapitalisierung USD 126'700 Mrd.\n• Private Markets ~USD 15'000 Mrd. (davon PE inkl. Venture ~USD 10'500 Mrd., Private Debt ~USD 1'600 Mrd., Private Real Estate ~USD 1'600 Mrd., Private Infrastructure ~USD 1'300 Mrd.)\n→ Stock markets sind etwa 10x grösser als Private Markets nach Marktkapitalisierung.",
+    src: SRC.p1(35) },
+
+  { id:"c90", topic:"private-mk", q:"Klausurfrage Task 33: «Hard evidence» hinter dem Wachstum von Private Markets?",
+    a:"KORREKT: «Better capital formation». Während Public Markets sich an IPOs von «high-profile aber unprofitablen» Firmen begeistern, bauen Private Markets aktiv Geschäfte auf, investieren in Assets und in Wachstum. Die anderen Optionen (Leverage, Governance, Financial Engineering) sind in der Klausur falsch.",
+    src: SRC.ex2(33) + " | " + SRC.p1(64) },
+
+  { id:"c91", topic:"private-mk", q:"Warum bleiben Startups heute länger «private»?",
+    a:"Im Jahr 1999 waren US-Tech-IPOs im Schnitt 4 Jahre alt; 2014 im Schnitt 11 Jahre. Von 35 Software-Firmen (2004–2015) mit Bewertungen >USD 10 Mrd. haben nur 6 diesen Level vor dem IPO erreicht – die übrigen im Schnitt > 8 Jahre nach dem IPO. Private Markets als Ort, an dem Wert geschaffen wird.",
+    src: SRC.p1(63,64) },
+
+  /* ===== Performance Pitfalls ===== */
+  { id:"c92", topic:"pitfalls", q:"Limitations of IRR – mathematisch",
+    a:"• Mehrere positive/negative Cashflows können zu multiplen Diskontsätzen führen, die NPV = 0 ergeben.\n• Bei Alternativen mit unterschiedlich langer Laufzeit kann IRR zu Fehlentscheidungen führen.\n• Negative/positive Cashflows können zum gleichen IRR-Ergebnis führen.",
+    src: SRC.val(29) },
+
+  { id:"c93", topic:"pitfalls", q:"Limitations of IRR – Interpretation (Reinvestment Assumption)",
+    a:"Effektive Rendite (RoR) für den Investor weicht von IRR ab. Beide sind nur identisch, wenn der Investor zwischenzeitliche Distributions ZUM IRR-Satz reinvestieren UND zum IRR-Satz borgen kann – praktisch unmöglich.",
+    src: SRC.val(30) },
+
+  { id:"c94", topic:"pitfalls", q:"«Stale Price»-Problem im PE",
+    a:"Bewertungen während der Halteperiode erfolgen durch den GP (nach IPEV-Guidelines), nicht durch eine unabhängige tägliche Marktbewertung. → Ermessensspielraum, Verzerrungen möglich; gängiges Risikomass «Rendite-Volatilität» ist nicht anwendbar.",
+    src: SRC.val(26) },
+
+  { id:"c95", topic:"pitfalls", q:"Interim-Performance – wie zuverlässig?",
+    a:"«Preliminary performance is no guarantee for final success». Bain (2011): Nur ~57 % der Fonds in einem Performance-Quartil im Jahr 5 enden im selben Quartil bei Auflösung. >2 von 5 wandern mindestens ein Quartil.",
+    src: SRC.val(24,25) },
+
+  { id:"c96", topic:"pitfalls", q:"IPEV-Guidelines (Dec 2018)",
+    a:"International Private Equity & Venture Capital Valuation Guidelines. Behandeln das Konzept «Fair Value» und Valuation-Methods (insb. Price of Recent Investment, Section 3.10). Sind der Industriestandard für die Bewertung nicht realisierter Portfoliopositionen.",
+    src: SRC.val(28) },
+
+  { id:"c97", topic:"pitfalls", q:"PME (Public Market Equivalent) und Limit",
+    a:"PME vergleicht private mit öffentlichen Investments. Limitation: Bei einem stark outperformenden PE-Investment mit grossen Distributions kann der Endwert der Theoretischen Indexinvestition negativ werden («Net-Short» im Index). mPME (Cambridge Associates, Okt. 2013) adressiert diese Limitation.",
+    src: SRC.val(22,23) },
+
+  /* ===== Allgemein - kurze Begriffsklärungen ===== */
+  { id:"c98", topic:"fund-perf", q:"Was sind «Capital Calls»?",
+    a:"Capital Calls = formelle Aufforderungen des GP an die LPs, einen Teil des Committed Capital einzuzahlen. Sie erfolgen «on an as-needed basis», typisch während der Investment Period (4–6 J. im Schnitt).",
+    src: SRC.val(3) + " | " + SRC.legal(12) },
+
+  { id:"c99", topic:"termsheet", q:"«Key Man Clause» im PE/VC",
+    a:"Bestimmt, dass eine oder mehrere Schlüsselpersonen substanzielle Zeit dem Fonds widmen müssen. Beim Wegfall («Key Person Event») können Investitionsaktivitäten pausiert oder Commitments reduziert werden.",
+    src: SRC.p2(3) },
+
+  { id:"c100", topic:"stages", q:"Stage-Visualisierung (Wenger Vieli)",
+    a:"Early Stage / Seed → Later Stage → Growth → Mature (LBO/MBO) → Distressed (Restructuring/Turnaround).\nVC deckt typischerweise Seed bis Series A–D ab (häufig vor positiven Cashflows), PE deckt Mature und LBO/MBO ab.",
+    src: SRC.legal(6) },
+
+  { id:"c101", topic:"swiss", q:"Datenquellen / Benchmarks für PE/VC (Skript)",
+    a:"Preqin, Cambridge Associates, Pitchbook, Burgiss, Dealroom, Crunchbase, CalPERS (Performance of Private Equity Funds), EIF (trackvc.eu).",
+    src: SRC.val(49,51) + " | " + SRC.p2(49) },
+
+  { id:"c102", topic:"private-mk", q:"PE-Persistence: Bleiben gute Manager gut?",
+    a:"Schroders (2022, 3'512 Fonds seit 1980): 36 % der Top-Quartil-Fonds bleiben Top-Quartil bei der nächsten Auflage des gleichen GP; 64 % in einem der beiden Top-Quartile. Nur 16 % fallen ins schlechteste Quartil. Bei Public Equity ist diese Persistenz deutlich schwächer.",
+    src: SRC.p2(31) },
+
+  /* ===== Ergänzende Cards (Skript Part 1) ===== */
+  { id:"c103", topic:"vc-vs-pe", q:"Beispiel-Multiple bei einem Buyout (Skript Part 1)",
+    a:"Kauf für $100 in Cash, Verkauf nach 5 Jahren für $200 → Return-Multiple 2x. IRR = 15 % p.a.\nMit 50 % Cash / 50 % Debt: $200 minus $50 Schuldenrückzahlung → Equity-Erlös $161 (Berücksichtigung Leverage).",
+    src: SRC.p1(70,71) },
+
+  { id:"c104", topic:"private-mk", q:"Investment in PE: Direct vs. Fund vs. Fund of Funds",
+    a:"Direct: maximale Kontrolle, höchstes Risiko (~30 % Totalverlust).\nSingle VC Fund: Diversifikation auf 10–30 Investments, niedrigeres Verlustrisiko.\nFund of Funds: breite Diversifikation, niedrigstes Verlustrisiko, dafür Doppelfee.",
+    src: SRC.p2(34,35) },
+
+];
+
+/* ----- QUIZ-FRAGEN (Original aus Altklausuren + Varianten) -------------- */
+const QUIZ = [
+  {
+    id:"q1",
+    topic:"vc-vs-pe",
+    type:"mcq",
+    q:"What distinguishes venture capital (VC) from other forms of private equity?",
+    options:[
+      "Focus on tech companies",
+      "Investment in public companies",
+      "Investment in early-stage, high-growth companies",
+      "Emphasis on short-term returns",
+    ],
+    correct:2,
+    src: SRC.ex1(14),
+    explain:"VC ist die Spielart von Private Equity, die in junge, schnell wachsende Unternehmen investiert – der entscheidende Stage-Unterschied. (Skript Part 1, Folie 19/69.)"
+  },
+  {
+    id:"q2",
+    topic:"fund-docs",
+    type:"mcq",
+    q:"What is the primary purpose of a shareholder's agreement in VC investments?",
+    options:[
+      "To set the company's operational goals",
+      "To outline the rights and obligations of the shareholders",
+      "To determine the product pricing strategy",
+      "To establish the value of the company's shares at the exit",
+    ],
+    correct:1,
+    src: SRC.ex1(16),
+    explain:"Im SHA werden Rechte und Pflichten der Aktionäre festgehalten – Board, Voting, Preferences, Transfer Restrictions, Anti-Dilution usw. (Wenger Vieli Folie 20.)"
+  },
+  {
+    id:"q3",
+    topic:"fund-docs",
+    type:"mcq",
+    q:"Welches Dokument gehört NICHT zu einer Equity Financing Round?",
+    options:[
+      "Convertible Loan Agreement",
+      "Articles of Association and Board Regulations",
+      "Employee Incentive Plans",
+      "Investment Agreement and Shareholders' Agreement",
+      "Intellectual Property Assignment Contracts",
+    ],
+    correct:0,
+    src: SRC.ex2(31),
+    explain:"Ein Convertible Loan ist eine Debt-Variante (Wandeldarlehen), kein Equity-Round-Dokument. Die übrigen Dokumente sind Teil einer Equity-Round-Dokumentation. (Wenger Vieli Folie 16.)"
+  },
+  {
+    id:"q4",
+    topic:"fund-docs",
+    type:"mcq",
+    q:"Welche Rolle hat der General Partner (GP) eines VC-Fonds?",
+    options:[
+      "Provides capital and general passive support",
+      "Manages the fund's investments and makes decisions on behalf of the fund",
+      "Provides general support to the fund",
+      "Primarily involved in legal documentation",
+    ],
+    correct:1,
+    src: SRC.ex1(15),
+    explain:"Der GP managt den Fonds, entscheidet über Investments, trägt unbegrenzte Haftung, erhält Management Fee und Carried Interest. (Wenger Vieli Folie 12, Skript Part 2 Folie 6.)"
+  },
+  {
+    id:"q5",
+    topic:"fund-docs",
+    type:"mcq",
+    q:"Welche Rolle haben Limited Partners (LPs) in einem VC-Fonds am besten?",
+    options:[
+      "They manage the daily operations of the fund",
+      "They provide capital to the fund and receive returns based on the fund's performance",
+      "They have limited information rights into the fund's performance",
+      "They recruit new startups for investment",
+    ],
+    correct:1,
+    src: SRC.ex1(17),
+    explain:"LPs sind Kapitalgeber und beziehen Returns gemäss Performance des Fonds; sie sind passive Investoren mit Haftung begrenzt auf das Investment. (Wenger Vieli Folie 12.)"
+  },
+  {
+    id:"q6",
+    topic:"exit",
+    type:"mcq-multi",
+    q:"Was bedeutet «Exit» im VC-Investitionsprozess? (Mehrere richtig)",
+    options:[
+      "The initial public offering (IPO) of the startup",
+      "The liquidation of the startup's assets",
+      "The sale of a startup's shares to realize returns",
+      "The formation of a new startup",
+    ],
+    correct:[0,2],
+    src: SRC.ex1(18),
+    explain:"Exit umfasst typischerweise IPO oder Verkauf der Aktien zur Realisation des Returns; Asset-Liquidation und die Gründung eines neuen Startups gehören nicht dazu. (Skript Part 1 Folie 69.)"
+  },
+  {
+    id:"q7",
+    topic:"swiss",
+    type:"mcq",
+    q:"Wie ist Venture Kick im Schweizer Startup-Ökosystem zu charakterisieren?",
+    options:[
+      "Venture Kick is one of Switzerland's largest startup incubators.",
+      "Venture Kick is one of Switzerland's largest venture capital funds.",
+      "Startups in the Venture Kick program are typically characterized by their high technological risk.",
+      "Venture Kick is one of Switzerland's largest startup accelerator programs.",
+    ],
+    correct:3,
+    src: SRC.ex1(13),
+    explain:"Venture Kick ist eines der grössten Schweizer Akzelerator-Programme – nicht primär VC-Fonds, nicht Inkubator im engeren Sinn."
+  },
+  {
+    id:"q8",
+    topic:"liq-pref",
+    type:"mcq",
+    q:"Wie werden die Erlöse bei einem Exit mit 1x non-participating Liquidation Preference verteilt?",
+    options:[
+      "Pro rata gleichmässig an alle Aktionäre (Common und Preferred).",
+      "Simultan pro rata an Common und Preferred entsprechend ihren Anteilen.",
+      "1. Priorität: Preferred-Shareholder bis zum höheren von (i) Issue Price oder (ii) Wert nach Conversion in Common. 2. Priorität: Common-Shareholder bis zum Issue Price.",
+      "1. Priorität: Preferred bis zum höheren von (i) Issue Price oder (ii) Conversion-Wert. 2. Priorität: Pro rata Common UND Preferred.",
+    ],
+    correct:2,
+    src: SRC.ex2(30),
+    explain:"Bei non-participating: Preferred wählt das Beste aus Preference ODER Conversion – aber kein «double dip» mit den Common. Antwort 4 wäre PARTICIPATING."
+  },
+  {
+    id:"q9",
+    topic:"vc-vs-pe",
+    type:"mcq",
+    q:"«Wesentlicher Unterscheidungspunkt zwischen VC und PE/Buyout ist, wohin das Geld des Investors fliesst.»",
+    options:[
+      "Yes.",
+      "Sometimes.",
+      "It depends.",
+      "No.",
+    ],
+    correct:0,
+    src: SRC.ex2(32),
+    explain:"Ja: VC-Geld fliesst in die Bilanz der Gesellschaft (Eigenkapitalerhöhung). PE-Geld fliesst i.d.R. an den Verkäufer und führt häufig zur Verschuldung der Bilanz. (Skript Part 1 Folie 18/31.)"
+  },
+  {
+    id:"q10",
+    topic:"private-mk",
+    type:"mcq",
+    q:"Welche «harte Evidenz» steht hinter dem Argument, dass Private Markets aktiv Geschäftsmodelle aufbauen?",
+    options:[
+      "Better capital formation.",
+      "Better leverage.",
+      "Superior governance structure.",
+      "Creative financial engineering.",
+    ],
+    correct:0,
+    src: SRC.ex2(33),
+    explain:"«Better capital formation» – Private Markets bauen aktiv Assets, Wachstum und Geschäfte auf, während Public Markets oft an IPOs von «high-profile, aber unprofitablen» Firmen festhalten. (Skript Part 1, Folie 64.)"
+  },
+  {
+    id:"q11",
+    topic:"fund-perf",
+    type:"mcq",
+    q:"Welche Formel gibt das DPI (Distributions to Paid-In) richtig wieder?",
+    options:[
+      "(NAV) ÷ Paid-In",
+      "Σ Distributions ÷ Σ Paid-In",
+      "(Distributions + NAV) ÷ Paid-In",
+      "Distributions × IRR ÷ NAV",
+    ],
+    correct:1,
+    src: SRC.val(15) + " | " + SRC.val(34),
+    explain:"DPI = Σ Distributions ÷ Σ Paid-In. NAV ÷ Paid-In = RVPI. (Distributions + NAV) ÷ Paid-In = TVPI."
+  },
+  {
+    id:"q12",
+    topic:"fund-perf",
+    type:"mcq",
+    q:"Welche Formel gibt das TVPI richtig wieder?",
+    options:[
+      "DPI − RVPI",
+      "DPI + RVPI",
+      "NAV ÷ Paid-In",
+      "Σ Distributions ÷ NAV",
+    ],
+    correct:1,
+    src: SRC.val(15),
+    explain:"TVPI = DPI + RVPI = (Distributions + NAV) ÷ Paid-In."
+  },
+  {
+    id:"q13",
+    topic:"valuation",
+    type:"open",
+    q:"Klausuraufgabe Task 1 (3 Punkte): Was macht die Bewertung junger Unternehmen schwieriger? (3 Items)",
+    sample:"3 Items aus dem Skript:\n1. Kein Track Record und (meist) keine Umsätze – Unsicherheit über Markterfolg.\n2. Hoher Anteil immaterieller Werte (Technologie, IP, Team), schwer in Multiples zu fassen.\n3. Hoher Kapitalbedarf bei gleichzeitig hohem Verlustrisiko und stark variablem Wachstumspotenzial.",
+    src: SRC.ex1(1) + " | " + SRC.p1(58)
+  },
+  {
+    id:"q14",
+    topic:"valuation",
+    type:"open",
+    q:"Klausuraufgabe Task 2 (1 Punkt): Beschreiben Sie Pre-Money- und Post-Money-Valuation.",
+    sample:"Pre-Money = Bewertung der Gesellschaft vor der Kapitalerhöhung der aktuellen Runde.\nPost-Money = Pre-Money + Investment der neuen Runde = Bewertung direkt nach der Kapitalerhöhung.\nAus Investment ÷ Post-Money ergibt sich der prozentuale Anteil des neuen Investors; die Altaktionäre werden entsprechend verwässert.",
+    src: SRC.ex1(2) + " | " + SRC.legal(24)
+  },
+  {
+    id:"q15",
+    topic:"vc-vs-pe",
+    type:"open",
+    q:"Klausuraufgabe Task 3 (4 Punkte): Key differences VC vs. PE für Stage / Company types / Percentage acquired / Return appetite.",
+    sample:"• Stage: VC = junge Wachstumsfirmen ohne positiven Cashflow. PE/Buyout = etablierte Firmen mit Umsatz und positivem Cashflow.\n• Company types: VC = Tech (Biotech, Medtech, Cleantech, IT). PE = stabile, etablierte Sektoren.\n• Percentage acquired: VC = Minderheit (mehrere Investoren, mehrere Runden). PE/Buyout = Mehrheit (wenige Investoren, eine Runde).\n• Return appetite / Risk: VC = High Risk / 15–20% IRR. PE = Moderate Risk / 10–15% IRR.",
+    src: SRC.ex1(3) + " | " + SRC.p1(69) + " | " + SRC.legal(7)
+  },
+  {
+    id:"q16",
+    topic:"process",
+    type:"open",
+    q:"Klausuraufgabe Task 4 (4 Punkte): Welche Fragen sollte ein Gründer einem VC stellen? (Fund, Value-Add, Reference Check)",
+    sample:"VC-Fund & Strategy: Stage/Sektor/Geografie, Fondsgrösse, verbleibendes Trockenpulver für Follow-ons, angestrebte Ticket-/Beteiligungsgrösse.\nValue-Add: Was bringt der VC ausser Geld? Coaching, Netzwerk, Board-Erfahrung, Folgerunden-Kontakte – belegbar durch konkrete Beispiele.\nReference Check (Founder eines Portfolio-Unternehmens): Wie verhält sich der VC in guten und schlechten Zeiten? Sind Zusagen eingehalten worden? Klare Kommunikation auf Board-Ebene? Würden Sie ihn wieder als Investor wählen?",
+    src: SRC.ex1(4)
+  },
+  {
+    id:"q17",
+    topic:"fund-perf",
+    type:"open",
+    q:"Klausuraufgabe Task 12 (3 Punkte): a) DPI SV Life Sciences Fund IV b) NAV Vector Capital IV in USD c) RVPI Vector Capital IV in % d) Undrawn Commitment Upfront III e) tiefster NAV",
+    sample:"Grundprinzip:\n• DPI = Cash Out ÷ Cash In. SV Life Sciences Fund IV: Cash In 15.0 Mio., Cash Out 32.5 Mio. → DPI ≈ 2.17.\n• NAV = «Remaining Value» (Spalte). Vector Capital IV: NAV ≈ 57'570'892 USD.\n• RVPI = NAV ÷ Cash In × 100. Vector Capital IV: 57.57 ÷ 24.68 ≈ 233 %.\n• Undrawn Commitment = Capital Committed − Cash In. Upfront III: 5.0 − 1.56 ≈ 3.44 Mio. USD undrawn.\n• Tiefster NAV (absolut): laut Tabelle der Fonds mit dem kleinsten «Remaining Value» (vgl. Klausur-Liste; Antwort entspricht dem Fonds mit dem geringsten USD-Wert in der Spalte «Remaining Value»).",
+    src: SRC.ex2(12) + " | " + SRC.val(15)
+  },
+];
+
+/* ----- FORMELN -------------------------------------------------------- */
+const FORMULAE = [
+  { id:"f1", title:"Post-Money-Valuation",
+    formula:"Post-Money = Pre-Money + Investment",
+    note:"Direktbewertung nach der Kapitalerhöhung. Pre-Money + neues Investment ergibt die Post-Money-Bewertung.",
+    src: SRC.legal(24) + " | " + SRC.ex1(2) },
+
+  { id:"f2", title:"Investor-Anteil nach der Runde",
+    formula:"Investor-Anteil (%) = Investment ÷ Post-Money",
+    note:"Direkter Bruch: Wie viel der Post-Money-Pizza gehört dem neuen Investor?",
+    src: SRC.legal(24) },
+
+  { id:"f3", title:"Value per Share",
+    formula:"Value per Share = Pre-Money ÷ Anzahl bestehender Shares  (vor der Runde)",
+    note:"Anschliessend: Neue Aktien (Kapitalerhöhung) = Investment ÷ Value per Share.",
+    src: SRC.legal(24) },
+
+  { id:"f4", title:"Dilution",
+    formula:"Dilution (%) = neue Shares ÷ Total Shares (post)",
+    note:"Faustregeln: Je tiefer die Pre-Money-Bewertung bzw. je grösser das Investment, desto höher die Dilution.",
+    src: SRC.legal(24,25) },
+
+  { id:"f5", title:"DPI – Distributions to Paid-In",
+    formula:"DPI = Σ Distributions (Cash Out) ÷ Σ Paid-In (Cash In)",
+    note:"«Realised Multiple». DPI = 1.0 → 100 % des einbezahlten Kapitals zurückbezahlt.",
+    src: SRC.val(15,34) },
+
+  { id:"f6", title:"RVPI – Residual Value to Paid-In",
+    formula:"RVPI = NAV (Residual Value) ÷ Σ Paid-In",
+    note:"«Unrealised Multiple». Gibt das Verhältnis des noch im Fonds steckenden Werts zum eingezahlten Kapital wieder.",
+    src: SRC.val(15,34) },
+
+  { id:"f7", title:"TVPI – Total Value to Paid-In",
+    formula:"TVPI = DPI + RVPI = (Distributions + NAV) ÷ Paid-In",
+    note:"Bei vollständiger Realisierung deckt sich TVPI mit dem Investment Multiple.",
+    src: SRC.val(15,34) },
+
+  { id:"f8", title:"IRR – Internal Rate of Return",
+    formula:"NPV = Σ CFᵢ ÷ (1 + IRR)^i = 0",
+    note:"IRR ist der Diskontsatz, bei dem der NPV aller Cashflows null wird. Wird annualisiert ausgewiesen.",
+    src: SRC.val(12,33) },
+
+  { id:"f9", title:"Interim IRR (mit NAV)",
+    formula:"Σ CFᵢ ÷ (1+IIRR)^i + NAVT ÷ (1+IIRR)^T = 0",
+    note:"Wenn der Fonds noch nicht vollständig realisiert ist, wird der NAV als positiver Cashflow am Ende der Berechnung angefügt.",
+    src: SRC.val(33) },
+
+  { id:"f10", title:"Investment Multiple",
+    formula:"Investment Multiple = Total Proceeds ÷ Total Investment",
+    note:"Beispiel u-blox: 98 ÷ 16.6 = 5.9x. (Skript Part 2 Folie 18.)",
+    src: SRC.p2(18) },
+
+  { id:"f11", title:"Undrawn Commitment",
+    formula:"Undrawn Commitment = Capital Committed − Cash In (Drawn Down)",
+    note:"Beispiel Upfront III: 5'000'000 − 1'563'845 ≈ 3'436'155 USD.",
+    src: SRC.ex2(12) },
+
+  { id:"f12", title:"Distribution Waterfall (vereinfacht)",
+    formula:"1. Repayment of Capital → 2. 8% Hurdle p.a. an LPs → 3. Catch-up GP → 4. Carry 20/80 (GP/LP)",
+    note:"Standard-Reihenfolge der Verteilung: LP zuerst Kapital + 8 % p.a., dann teilt der GP über Catch-up und 20 % Carry mit.",
+    src: SRC.val(6) + " | " + SRC.legal(12) },
+];
+
+/* ===========================================================
+   UI-Komponenten
+   =========================================================== */
+
+function classNames(...arr){ return arr.filter(Boolean).join(" "); }
+
+function tagForTopic(id){
+  const t = TOPICS.find(x=>x.id===id);
+  return t? t.name : id;
+}
+
+/* ----- Header / Tabs ------------------------------------ */
+function TabBar({active, onChange}){
+  const tabs = [
+    {id:"dash",    label:"Übersicht"},
+    {id:"cards",   label:"Karteikarten"},
+    {id:"quiz",    label:"Quiz"},
+    {id:"formel",  label:"Formeln"},
+    {id:"search",  label:"Suche"},
+  ];
+  return (
+    <nav className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200">
+      <div className="max-w-3xl mx-auto px-3 py-2 flex items-center justify-between">
+        <div className="text-sm font-semibold text-slate-700 tracking-tight">VC · Lernapp</div>
+        <div className="text-[11px] text-slate-400">HSLU MSc · Pedergnana/Heimann</div>
+      </div>
+      <div className="max-w-3xl mx-auto px-2 overflow-x-auto scrollbar-hide">
+        <div className="flex gap-1 pb-2">
+          {tabs.map(t=>(
+            <button key={t.id}
+              onClick={()=>onChange(t.id)}
+              className={classNames(
+                "tap px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition",
+                active===t.id
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              )}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+/* ----- Dashboard --------------------------------------- */
+function Dashboard({onPickTopic, leitner, totalCards, totalQuiz}){
+  const ranked = [...TOPICS].sort((a,b)=> b.weight - a.weight);
+  const countByTopic = useMemo(()=>{
+    const m = {};
+    CARDS.forEach(c=>{ m[c.topic] = (m[c.topic]||0) + 1; });
+    return m;
+  }, []);
+  const counts = useMemo(()=>{
+    const c = { neu:0, lernen:0, sitzt:0 };
+    Object.values(leitner).forEach(v=>{
+      if (v==="sitzt") c.sitzt++;
+      else if (v==="lernen") c.lernen++;
+      else c.neu++;
+    });
+    const open = totalCards - (c.lernen + c.sitzt + c.neu);
+    if (open>0) c.neu += open;
+    return c;
+  }, [leitner, totalCards]);
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold text-slate-900">Übersicht</h1>
+        <p className="text-sm text-slate-500">Sortiert nach Klausurhäufigkeit / Punktegewicht. Inhalte ausschliesslich aus Ihren Materialien.</p>
+      </header>
+
+      <section className="grid grid-cols-3 gap-2">
+        <StatTile label="Karten" value={totalCards} hint="aus Ihren PDFs" />
+        <StatTile label="Quizfragen" value={totalQuiz} hint="Original + Varianten" />
+        <StatTile label="Formeln" value={FORMULAE.length} hint="aus Skript" />
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-slate-700">Lernstand (Session)</h2>
+          <span className="text-[11px] text-slate-400">Leitner · 3 Boxen</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <BoxStat label="Neu"      value={counts.neu}    tone="slate"  />
+          <BoxStat label="Am Lernen" value={counts.lernen} tone="amber"  />
+          <BoxStat label="Sitzt"    value={counts.sitzt}  tone="emerald"/>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-slate-700 mb-2">Themen nach Klausurhäufigkeit</h2>
+        <ul className="space-y-2">
+          {ranked.map((t,i)=>(
+            <li key={t.id}>
+              <button onClick={()=>onPickTopic(t.id)}
+                className="tap w-full text-left rounded-xl border border-slate-200 bg-white p-3 hover:border-slate-400 hover:shadow-sm transition flex items-center gap-3">
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">{i+1}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-slate-800 truncate">{t.name}</div>
+                  <div className="text-[11px] text-slate-400">{(countByTopic[t.id]||0)} Karteikarten</div>
+                </div>
+                <Weight n={t.weight} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="text-[11px] text-slate-400 leading-relaxed">
+        Hinweis: «Klausurhäufigkeit» ist eine Heuristik aus den vorliegenden Altklausuren (Excerpt 2024 Exam, Excerpt Part II) sowie der Themengewichtung im Skript. Bei Lücken zeigt die App ein Platzhalter-Feld – bitte ergänzen Sie dort fehlende Inhalte aus Ihren Unterlagen.
+      </section>
+    </div>
+  );
+}
+
+function StatTile({label, value, hint}){
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="text-2xl font-semibold text-slate-900">{value}</div>
+      <div className="text-xs text-slate-500">{label}</div>
+      {hint && <div className="text-[10px] text-slate-400">{hint}</div>}
+    </div>
+  );
+}
+
+function BoxStat({label, value, tone}){
+  const toneMap = {
+    slate:   "bg-slate-50 text-slate-700",
+    amber:   "bg-amber-50 text-amber-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+  };
+  return (
+    <div className={"rounded-xl p-3 " + (toneMap[tone]||toneMap.slate)}>
+      <div className="text-xl font-semibold">{value}</div>
+      <div className="text-xs">{label}</div>
+    </div>
+  );
+}
+
+function Weight({n}){
+  return (
+    <span className="flex items-center gap-0.5 text-amber-500">
+      {[1,2,3,4,5].map(i=>(
+        <span key={i} className={"text-[14px] leading-none " + (i<=n? "" : "text-slate-200")}>★</span>
+      ))}
+    </span>
+  );
+}
+
+/* ----- Karteikarten ------------------------------------ */
+function FlashcardMode({leitner, setLeitner, topicFilter, setTopicFilter}){
+  const filteredCards = useMemo(()=>{
+    if (!topicFilter || topicFilter==="all") return CARDS;
+    return CARDS.filter(c=>c.topic===topicFilter);
+  }, [topicFilter]);
+
+  const queue = useMemo(()=>{
+    const tier = (id)=> {
+      const s = leitner[id];
+      if (s==="sitzt") return 2;
+      if (s==="lernen") return 1;
+      return 0;
+    };
+    return [...filteredCards].sort((a,b)=> tier(a.id) - tier(b.id));
+  }, [filteredCards, leitner]);
+
+  const [idx, setIdx] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [showSrc, setShowSrc] = useState(false);
+
+  useEffect(()=>{ setIdx(0); setFlipped(false); setShowSrc(false); }, [topicFilter]);
+
+  if (queue.length === 0) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-10 text-center text-slate-500">
+        Keine Karten für dieses Thema vorhanden.
+      </div>
+    );
+  }
+
+  const card = queue[idx % queue.length];
+  const state = leitner[card.id] || "neu";
+
+  const mark = (status)=>{
+    setLeitner(prev => ({...prev, [card.id]: status}));
+    setFlipped(false);
+    setShowSrc(false);
+    setIdx(i => i + 1);
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-5 space-y-4">
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+        <TopicChip active={topicFilter==="all" || !topicFilter} onClick={()=>setTopicFilter("all")}>Alle</TopicChip>
+        {TOPICS.map(t=>(
+          <TopicChip key={t.id} active={topicFilter===t.id} onClick={()=>setTopicFilter(t.id)}>
+            {t.name}
+          </TopicChip>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between text-xs text-slate-500">
+        <span>{(idx % queue.length)+1} / {queue.length}</span>
+        <Badge state={state} />
+      </div>
+
+      <div className="[perspective:1200px]">
+        <div
+          className={classNames("card-flip relative w-full min-h-[280px]", flipped && "is-flipped")}
+          onClick={()=>setFlipped(f=>!f)}
+        >
+          <div className="card-face absolute inset-0">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm min-h-[280px] flex flex-col">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400">{tagForTopic(card.topic)}</div>
+              <div className="mt-3 text-lg font-medium text-slate-900 leading-snug whitespace-pre-wrap">
+                {card.q}
+              </div>
+              <div className="mt-auto pt-4 text-xs text-slate-400">Tippen für Antwort</div>
+            </div>
+          </div>
+          <div className="card-face card-back absolute inset-0">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm min-h-[280px] flex flex-col">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400">Antwort</div>
+              <div className="mt-3 text-[15px] text-slate-800 leading-relaxed whitespace-pre-wrap">
+                {card.a}
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={(e)=>{ e.stopPropagation(); setShowSrc(s=>!s); }}
+                  className="text-xs text-slate-600 underline underline-offset-4">
+                  {showSrc ? "Quelle ausblenden" : "Quelle anzeigen"}
+                </button>
+                {showSrc && (
+                  <div className="mt-2 text-[12px] text-slate-500 bg-white rounded-lg border border-slate-200 p-2">
+                    {card.src}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <ActionBtn onClick={()=>mark("neu")} tone="slate">Nochmal</ActionBtn>
+        <ActionBtn onClick={()=>mark("lernen")} tone="amber">Am Lernen</ActionBtn>
+        <ActionBtn onClick={()=>mark("sitzt")} tone="emerald">Sitzt</ActionBtn>
+      </div>
+
+      <div className="text-[11px] text-slate-400 leading-relaxed">
+        Hinweis: Der Fortschritt wird in dieser Browser-Sitzung gehalten (React-State, kein localStorage in Claude-Artifacts). Beim Schliessen geht er verloren.
+      </div>
+    </div>
+  );
+}
+
+function ActionBtn({tone, onClick, children}){
+  const map = {
+    slate:   "bg-white border-slate-200 text-slate-700 hover:bg-slate-50",
+    amber:   "bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100",
+    emerald: "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100",
+  };
+  return (
+    <button onClick={onClick}
+      className={"tap rounded-xl border py-3 text-sm font-medium transition " + (map[tone]||map.slate)}>
+      {children}
+    </button>
+  );
+}
+
+function Badge({state}){
+  const map = {
+    neu:    { l:"Neu",       cls:"bg-slate-100 text-slate-600" },
+    lernen: { l:"Am Lernen", cls:"bg-amber-100 text-amber-700" },
+    sitzt:  { l:"Sitzt",     cls:"bg-emerald-100 text-emerald-700" },
+  };
+  const x = map[state] || map.neu;
+  return <span className={"text-[11px] px-2 py-0.5 rounded-full "+x.cls}>{x.l}</span>;
+}
+
+function TopicChip({active, children, onClick}){
+  return (
+    <button onClick={onClick}
+      className={classNames(
+        "tap whitespace-nowrap text-xs px-3 py-1.5 rounded-full border transition",
+        active
+          ? "bg-slate-900 text-white border-slate-900"
+          : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+      )}>
+      {children}
+    </button>
+  );
+}
+
+/* ----- Quiz ----------------------------------------------- */
+function QuizMode(){
+  const [idx, setIdx] = useState(0);
+  const [picked, setPicked] = useState(null); // number | number[] | null
+  const [revealed, setRevealed] = useState(false);
+  const [showSrc, setShowSrc] = useState(false);
+  const [score, setScore] = useState({c:0, total:0});
+  const [topicFilter, setTopicFilter] = useState("all");
+
+  const items = useMemo(()=>{
+    if (topicFilter==="all") return QUIZ;
+    return QUIZ.filter(q=>q.topic===topicFilter);
+  }, [topicFilter]);
+
+  useEffect(()=>{ setIdx(0); setPicked(null); setRevealed(false); setShowSrc(false); }, [topicFilter]);
+
+  if (items.length === 0) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-10 text-center text-slate-500">
+        Keine Quizfragen für dieses Thema vorhanden.
+      </div>
+    );
+  }
+
+  const q = items[idx % items.length];
+
+  const submit = ()=>{
+    if (revealed) return;
+    setRevealed(true);
+    setScore(s=>{
+      let isCorrect = false;
+      if (q.type === "mcq") isCorrect = picked === q.correct;
+      else if (q.type === "mcq-multi") {
+        const a = Array.isArray(picked) ? [...picked].sort() : [];
+        const b = [...q.correct].sort();
+        isCorrect = a.length === b.length && a.every((v,i)=>v===b[i]);
+      }
+      return { c: s.c + (isCorrect?1:0), total: s.total + (q.type==="open" ? 0 : 1) };
+    });
+  };
+
+  const next = ()=>{
+    setIdx(i=>i+1);
+    setPicked(null);
+    setRevealed(false);
+    setShowSrc(false);
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-5 space-y-4">
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+        <TopicChip active={topicFilter==="all"} onClick={()=>setTopicFilter("all")}>Alle</TopicChip>
+        {TOPICS.filter(t=>QUIZ.some(q=>q.topic===t.id)).map(t=>(
+          <TopicChip key={t.id} active={topicFilter===t.id} onClick={()=>setTopicFilter(t.id)}>
+            {t.name}
+          </TopicChip>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between text-xs text-slate-500">
+        <span>{(idx % items.length)+1} / {items.length}</span>
+        <span>Punktestand: {score.c} / {score.total}</span>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+        <div className="text-[11px] uppercase tracking-wider text-slate-400">
+          {tagForTopic(q.topic)} {q.type==="open" && "· Offene Frage"} {q.type==="mcq-multi" && "· Mehrfachauswahl"}
+        </div>
+        <div className="text-base font-medium text-slate-900 leading-snug whitespace-pre-wrap">{q.q}</div>
+
+        {q.type === "mcq" && (
+          <div className="space-y-2">
+            {q.options.map((o,i)=>{
+              const isPicked = picked===i;
+              const isCorrect = revealed && q.correct===i;
+              const isWrong   = revealed && isPicked && q.correct!==i;
+              return (
+                <button key={i}
+                  disabled={revealed}
+                  onClick={()=>setPicked(i)}
+                  className={classNames(
+                    "tap w-full text-left rounded-xl border p-3 text-sm transition",
+                    isCorrect ? "border-emerald-300 bg-emerald-50 text-emerald-800" :
+                    isWrong   ? "border-rose-300 bg-rose-50 text-rose-800" :
+                    isPicked  ? "border-slate-400 bg-slate-50" :
+                                "border-slate-200 bg-white hover:border-slate-300"
+                  )}>
+                  <span className="font-medium mr-2">{String.fromCharCode(65+i)}</span>
+                  {o}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {q.type === "mcq-multi" && (
+          <div className="space-y-2">
+            {q.options.map((o,i)=>{
+              const arr = Array.isArray(picked) ? picked : [];
+              const isPicked = arr.includes(i);
+              const isCorrect = revealed && q.correct.includes(i);
+              const isWrong   = revealed && isPicked && !q.correct.includes(i);
+              return (
+                <button key={i}
+                  disabled={revealed}
+                  onClick={()=>{
+                    if (revealed) return;
+                    setPicked(prev=>{
+                      const arr2 = Array.isArray(prev) ? [...prev] : [];
+                      const at = arr2.indexOf(i);
+                      if (at>=0) arr2.splice(at,1); else arr2.push(i);
+                      return arr2;
+                    });
+                  }}
+                  className={classNames(
+                    "tap w-full text-left rounded-xl border p-3 text-sm transition",
+                    isCorrect ? "border-emerald-300 bg-emerald-50 text-emerald-800" :
+                    isWrong   ? "border-rose-300 bg-rose-50 text-rose-800" :
+                    isPicked  ? "border-slate-400 bg-slate-50" :
+                                "border-slate-200 bg-white hover:border-slate-300"
+                  )}>
+                  <span className="font-medium mr-2">{String.fromCharCode(65+i)}</span>
+                  {o}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {q.type === "open" && (
+          <div className="text-xs text-slate-500">
+            Offene Frage (aus Altklausur). Notieren Sie Ihre Antwort gedanklich – Musterlösung beim Aufdecken.
+          </div>
+        )}
+
+        {!revealed && (
+          <button onClick={submit}
+            className="tap w-full rounded-xl bg-slate-900 text-white text-sm py-3 font-medium hover:bg-slate-800 transition">
+            {q.type==="open" ? "Musterlösung anzeigen" : "Auswerten"}
+          </button>
+        )}
+
+        {revealed && (
+          <div className="space-y-2 pt-1">
+            {q.type !== "open" && (
+              <div className="text-sm text-slate-700">
+                <span className="font-semibold">Erklärung: </span>{q.explain}
+              </div>
+            )}
+            {q.type === "open" && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 whitespace-pre-wrap">
+                {q.sample}
+              </div>
+            )}
+            <button onClick={()=>setShowSrc(s=>!s)}
+              className="text-xs text-slate-600 underline underline-offset-4">
+              {showSrc ? "Quelle ausblenden" : "Quelle anzeigen"}
+            </button>
+            {showSrc && (
+              <div className="text-[12px] text-slate-500 bg-white rounded-lg border border-slate-200 p-2">
+                {q.src}
+              </div>
+            )}
+            <button onClick={next}
+              className="tap w-full rounded-xl border border-slate-300 text-slate-800 text-sm py-2.5 mt-2 hover:bg-slate-50 transition">
+              Nächste Frage →
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ----- Formeln -------------------------------------------- */
+function FormulaSheet(){
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-5 space-y-3">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold text-slate-900">Formel-Spickzettel</h1>
+        <p className="text-sm text-slate-500">Nur Formeln, die in Ihren Materialien stehen.</p>
+      </header>
+      <ul className="space-y-2">
+        {FORMULAE.map(f=>(
+          <li key={f.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="text-xs uppercase tracking-wider text-slate-400">{f.title}</div>
+            <div className="mt-2 font-mono text-[14px] sm:text-[15px] text-slate-900 whitespace-pre-wrap">{f.formula}</div>
+            {f.note && <div className="mt-2 text-sm text-slate-600 whitespace-pre-wrap">{f.note}</div>}
+            <div className="mt-2 text-[11px] text-slate-400">{f.src}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/* ----- Suche ---------------------------------------------- */
+function SearchMode(){
+  const [q, setQ] = useState("");
+  const norm = (s)=> (s||"").toLowerCase();
+  const term = norm(q.trim());
+  const results = useMemo(()=>{
+    if (!term) return { cards:[], quiz:[], formulae:[] };
+    const cards = CARDS.filter(c=>
+      norm(c.q).includes(term) || norm(c.a).includes(term) || norm(tagForTopic(c.topic)).includes(term)
+    );
+    const quiz = QUIZ.filter(c=>
+      norm(c.q).includes(term) || norm(c.explain).includes(term) || norm(c.sample).includes(term)
+    );
+    const formulae = FORMULAE.filter(f=>
+      norm(f.title).includes(term) || norm(f.formula).includes(term) || norm(f.note).includes(term)
+    );
+    return { cards, quiz, formulae };
+  }, [term]);
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-5 space-y-4">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold text-slate-900">Suche</h1>
+        <p className="text-sm text-slate-500">Volltext über Karten, Quizfragen und Formeln.</p>
+      </header>
+      <input
+        type="search"
+        value={q}
+        onChange={e=>setQ(e.target.value)}
+        placeholder="z.B. Liquidation Preference, DPI, Cap Table, Drag-Along…"
+        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base outline-none focus:border-slate-500"
+      />
+      {term && (
+        <div className="text-[11px] text-slate-500">
+          {results.cards.length} Karten · {results.quiz.length} Quizfragen · {results.formulae.length} Formeln
+        </div>
+      )}
+
+      {term && results.cards.length===0 && results.quiz.length===0 && results.formulae.length===0 && (
+        <PlaceholderEmpty term={q} />
+      )}
+
+      <div className="space-y-3">
+        {results.cards.map(c=>(
+          <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="text-[11px] uppercase tracking-wider text-slate-400">{tagForTopic(c.topic)} · Karte</div>
+            <div className="mt-2 font-medium text-slate-900 whitespace-pre-wrap">{c.q}</div>
+            <div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{c.a}</div>
+            <div className="mt-2 text-[11px] text-slate-400">{c.src}</div>
+          </div>
+        ))}
+        {results.quiz.map(c=>(
+          <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="text-[11px] uppercase tracking-wider text-slate-400">{tagForTopic(c.topic)} · Quiz</div>
+            <div className="mt-2 font-medium text-slate-900 whitespace-pre-wrap">{c.q}</div>
+            {c.explain && <div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{c.explain}</div>}
+            {c.sample && <div className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{c.sample}</div>}
+            <div className="mt-2 text-[11px] text-slate-400">{c.src}</div>
+          </div>
+        ))}
+        {results.formulae.map(f=>(
+          <div key={f.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="text-[11px] uppercase tracking-wider text-slate-400">Formel</div>
+            <div className="mt-2 font-medium text-slate-900">{f.title}</div>
+            <div className="mt-1 font-mono text-sm text-slate-800">{f.formula}</div>
+            {f.note && <div className="mt-1 text-sm text-slate-700">{f.note}</div>}
+            <div className="mt-2 text-[11px] text-slate-400">{f.src}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PlaceholderEmpty({term}){
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-5">
+      <div className="text-sm font-semibold text-slate-700">Kein Treffer für «{term}»</div>
+      <div className="mt-1 text-sm text-slate-500">
+        Dieses Thema ist in den ausgelesenen Materialien (Altklausuren, Pedergnana/Heimann Part 1+2, Wenger Vieli Legal Basis, Valuation/Reporting) nicht abgedeckt – um Halluzinationen zu vermeiden, wurde nichts ergänzt.
+      </div>
+      <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
+        Platzhalter zum manuellen Befüllen:<br/>
+        <span className="block mt-1">Frage / Begriff: <em>{term}</em></span>
+        <span className="block">Antwort: <em>(später ergänzen aus eigener Skript-/Vorlesungsnotiz)</em></span>
+        <span className="block">Quelle: <em>(z.B. Skript-Seite oder Foliennummer)</em></span>
+      </div>
+    </div>
+  );
+}
+
+/* ===========================================================
+   Root
+   =========================================================== */
+function App(){
+  const [tab, setTab] = useState("dash");
+  const [leitner, setLeitner] = useState({}); // {cardId: "neu"|"lernen"|"sitzt"}
+  const [topicFilter, setTopicFilter] = useState("all");
+
+  const onPickTopic = (id)=>{ setTopicFilter(id); setTab("cards"); };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <TabBar active={tab} onChange={setTab} />
+      {tab==="dash"   && <Dashboard onPickTopic={onPickTopic} leitner={leitner} totalCards={CARDS.length} totalQuiz={QUIZ.length} />}
+      {tab==="cards"  && <FlashcardMode leitner={leitner} setLeitner={setLeitner} topicFilter={topicFilter} setTopicFilter={setTopicFilter} />}
+      {tab==="quiz"   && <QuizMode />}
+      {tab==="formel" && <FormulaSheet />}
+      {tab==="search" && <SearchMode />}
+      <footer className="max-w-3xl mx-auto px-4 py-8 text-[11px] text-slate-400 text-center">
+        © Lernunterlage zum Privatgebrauch. Inhalte aus den HSLU-Materialien (Pedergnana/Heimann, Wenger Vieli, Altklausuren). Keine Garantie.
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
